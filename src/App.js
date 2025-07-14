@@ -10,19 +10,16 @@ const defaultExercises = [
 function App() {
   const [exercises, setExercises] = useState(defaultExercises);
   const [workoutData, setWorkoutData] = useState(() => {
-    // Puxa do localStorage ou cria vazio
     const saved = localStorage.getItem("workoutData");
     return saved ? JSON.parse(saved) : {};
   });
   const [currentWeek, setCurrentWeek] = useState(getCurrentWeek());
   const [newExerciseName, setNewExerciseName] = useState("");
 
-  // Salvar localStorage quando workoutData mudar
   useEffect(() => {
     localStorage.setItem("workoutData", JSON.stringify(workoutData));
   }, [workoutData]);
 
-  // Função que retorna a semana atual no formato YYYY-WW
   function getCurrentWeek() {
     const now = new Date();
     const year = now.getFullYear();
@@ -31,9 +28,17 @@ function App() {
     return `${year}-W${week}`;
   }
 
-  // Pega ou inicializa os dados da semana atual
   function getWeekData(week) {
-    if (!workoutData[week]) {
-      return {};
-    }
-    return workoutData[week]()
+    return workoutData[week] || {};
+  }
+
+  // ... restante do código (funções, JSX, etc)
+  
+  return (
+    <div>
+      {/* seu JSX aqui */}
+    </div>
+  );
+}
+
+export default App;
