@@ -94,3 +94,9 @@ export default function TreinoTracker() {
     </div>
   );
 }
+import React, { useEffect, useState } from "react";
+// ... todo o código que te mandei
+
+export default function TreinoTracker() {
+  // ...
+}
