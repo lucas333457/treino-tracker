@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
 } from "recharts";
 
 const defaultExercises = [
@@ -15,128 +9,173 @@ const defaultExercises = [
   { id: 3, name: "Remada" },
 ];
 
-export default function App() {
-  const [exercises, setExercises] = useState(defaultExercises);
-  const [data, setData] = useState(() => {
+function App() {
+  const [exercises, setExercises] = useState(() => {
+    const saved = localStorage.getItem("exercises");
+    return saved ? JSON.parse(saved) : defaultExercises;
+  });
+
+  const [workoutData, setWorkoutData] = useState(() => {
     const saved = localStorage.getItem("workoutData");
     return saved ? JSON.parse(saved) : {};
   });
+
+  const [currentWeek, setCurrentWeek] = useState(getCurrentWeek());
   const [newExerciseName, setNewExerciseName] = useState("");
 
-  // Salvar no localStorage sempre que data mudar
   useEffect(() => {
-    localStorage.setItem("workoutData", JSON.stringify(data));
-  }, [data]);
+    localStorage.setItem("workoutData", JSON.stringify(workoutData));
+  }, [workoutData]);
 
-  // Adicionar novo exercício
-  function addExercise() {
-    if (!newExerciseName.trim()) return;
-    const newId =
-      exercises.length > 0
-        ? Math.max(...exercises.map((e) => e.id)) + 1
-        : 1;
-    setExercises([...exercises, { id: newId, name: newExerciseName.trim() }]);
-    setNewExerciseName("");
+  useEffect(() => {
+    localStorage.setItem("exercises", JSON.stringify(exercises));
+  }, [exercises]);
+
+  function getCurrentWeek() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const onejan = new Date(year, 0, 1);
+    const week = Math.ceil(((now - onejan) / 86400000 + onejan.getDay() + 1) / 7);
+    return `${year}-W${week}`;
   }
 
-  // Atualiza reps e peso para um exercício
-  function updateExercise(id, field, value) {
-    setData((oldData) => {
-      const newData = { ...oldData };
-      if (!newData[id]) newData[id] = { reps: 0, weight: 0 };
-      newData[id][field] = Math.max(0, value);
-      return newData;
+  function getWeekData(week) {
+    return workoutData[week] || {};
+  }
+
+  function changeSeries(exerciseId, delta) {
+    setWorkoutData((prev) => {
+      const weekData = { ...getWeekData(currentWeek) };
+      const currentSeries = weekData[exerciseId]?.series || 0;
+      const newSeries = Math.max(0, currentSeries + delta);
+      const currentWeight = weekData[exerciseId]?.weight || "";
+
+      weekData[exerciseId] = { series: newSeries, weight: currentWeight };
+      return { ...prev, [currentWeek]: weekData };
     });
   }
 
-  // Soma total de reps para gráfico
-  const chartData = exercises.map((ex) => ({
-    name: ex.name,
-    reps: data[ex.id]?.reps || 0,
-  }));
+  function changeWeight(exerciseId, value) {
+    if (value !== "" && isNaN(value)) return; // só aceita números ou vazio
+    setWorkoutData((prev) => {
+      const weekData = { ...getWeekData(currentWeek) };
+      const currentSeries = weekData[exerciseId]?.series || 0;
+      weekData[exerciseId] = { series: currentSeries, weight: value };
+      return { ...prev, [currentWeek]: weekData };
+    });
+  }
+
+  function addExercise() {
+    if (!newExerciseName.trim()) return;
+    setExercises((prev) => [
+      ...prev,
+      { id: prev.length ? prev[prev.length - 1].id + 1 : 1, name: newExerciseName.trim() },
+    ]);
+    setNewExerciseName("");
+  }
+
+  function changeWeek(delta) {
+    let [yearStr, weekStr] = currentWeek.split("-W");
+    let year = parseInt(yearStr);
+    let week = parseInt(weekStr);
+
+    week += delta;
+    if (week < 1) {
+      year--;
+      week = 52;
+    } else if (week > 52) {
+      year++;
+      week = 1;
+    }
+    setCurrentWeek(`${year}-W${week}`);
+  }
+
+  const chartData = exercises
+    .map(({ id, name }) => {
+      const weekData = getWeekData(currentWeek);
+      return {
+        name,
+        series: weekData[id]?.series || 0,
+      };
+    })
+    .filter((d) => d.series > 0);
 
   return (
-    <div style={{ maxWidth: 600, margin: "20px auto", fontFamily: "Arial" }}>
-      <h1>Treino Tracker</h1>
+    <div style={{ maxWidth: 700, margin: "auto", fontFamily: "Arial, sans-serif", padding: 20 }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <h2>Treino Tracker</h2>
+      </header>
 
-      <div>
+      <div style={{ marginBottom: 15 }}>
+        <button onClick={() => changeWeek(-1)}>{"< Semana anterior"}</button>
+        <span style={{ margin: "0 15px" }}>{currentWeek}</span>
+        <button onClick={() => changeWeek(1)}>{"Semana seguinte >"}</button>
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
         <input
+          type="text"
           placeholder="Novo exercício"
           value={newExerciseName}
           onChange={(e) => setNewExerciseName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") addExercise(); }}
+          style={{ padding: 6, width: 200 }}
         />
-        <button onClick={addExercise}>Adicionar</button>
+        <button onClick={addExercise} style={{ marginLeft: 10, padding: "6px 12px" }}>
+          Adicionar
+        </button>
       </div>
 
-      <div style={{ marginTop: 20 }}>
-        {exercises.map((ex) => (
+      {exercises.map(({ id, name }) => {
+        const weekData = getWeekData(currentWeek);
+        const series = weekData[id]?.series || 0;
+        const weight = weekData[id]?.weight || "";
+
+        return (
           <div
-            key={ex.id}
+            key={id}
             style={{
-              border: "1px solid #ccc",
-              padding: 10,
-              marginBottom: 10,
-              borderRadius: 5,
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
+              marginBottom: 10,
+              gap: 10,
             }}
           >
-            <strong style={{ flex: 1 }}>{ex.name}</strong>
+            <div style={{ flex: 1 }}>{name}</div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <label>
-                Peso:
-                <button
-                  onClick={() =>
-                    updateExercise(ex.id, "weight", (data[ex.id]?.weight || 0) - 1)
-                  }
-                >
-                  -
-                </button>
-                <span style={{ margin: "0 5px" }}>{data[ex.id]?.weight || 0}</span>
-                <button
-                  onClick={() =>
-                    updateExercise(ex.id, "weight", (data[ex.id]?.weight || 0) + 1)
-                  }
-                >
-                  +
-                </button>
-              </label>
+            <button onClick={() => changeSeries(id, -1)} disabled={series === 0}>
+              -
+            </button>
+            <span>{series}</span>
+            <button onClick={() => changeSeries(id, 1)}>+</button>
 
-              <label>
-                Reps:
-                <button
-                  onClick={() =>
-                    updateExercise(ex.id, "reps", (data[ex.id]?.reps || 0) - 1)
-                  }
-                >
-                  -
-                </button>
-                <span style={{ margin: "0 5px" }}>{data[ex.id]?.reps || 0}</span>
-                <button
-                  onClick={() =>
-                    updateExercise(ex.id, "reps", (data[ex.id]?.reps || 0) + 1)
-                  }
-                >
-                  +
-                </button>
-              </label>
-            </div>
+            <input
+              type="text"
+              placeholder="Peso (kg)"
+              value={weight}
+              onChange={(e) => changeWeight(id, e.target.value)}
+              style={{ width: 80, marginLeft: 10 }}
+            />
           </div>
-        ))}
-      </div>
+        );
+      })}
 
-      <h2>Gráfico de Repetições</h2>
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" />
-          <YAxis allowDecimals={false} />
-          <Tooltip />
-          <Bar dataKey="reps" fill="#8884d8" />
-        </BarChart>
-      </ResponsiveContainer>
+      <h3>Gráfico de séries da semana</h3>
+      {chartData.length > 0 ? (
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis allowDecimals={false} />
+            <Tooltip />
+            <Bar dataKey="series" fill="#8884d8" />
+          </BarChart>
+        </ResponsiveContainer>
+      ) : (
+        <p>Nenhum dado para mostrar no gráfico.</p>
+      )}
     </div>
   );
 }
+
+export default App;
